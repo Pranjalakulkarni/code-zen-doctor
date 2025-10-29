@@ -35,17 +35,18 @@ serve(async (req) => {
 Task:
 1. Analyze the user's pasted code.
 2. Identify and list each bug found with:
-   - Bug type (Syntax, Logical, Security, UI, etc.)
-   - Severity (High, Medium, Low), color-coded if possible.
-   - Line number or code snippet where the bug occurs.
+   - Bug type (Syntax, Logical, Security, UI, Runtime)
+   - Severity (High, Medium, Low)
+   - Line number or code snippet where the bug occurs
+   - Confidence score (0-100) for your detection accuracy
 3. Generate the fully corrected version of the input code, applying all necessary fixes.
 4. Highlight or comment changes inline in the corrected code.
-5. Return a JSON object with two keys:
-   - "bugs": an array of bug objects with details.
-   - "correctedCode": the complete corrected code as a string.
+5. Return a JSON object with these keys:
+   - "bugs": an array of bug objects with details
+   - "correctedCode": the complete corrected code as a string
+   - "overallConfidence": average confidence score across all bugs (0-100)
 6. The output must contain no filler language or explanations outside the JSON.
 7. The JSON must be valid for parsing by the frontend.
-8. Use clear, unambiguous formatting to allow easy display of bug list and corrected code in the UI.
 
 Example output format:
 
@@ -55,16 +56,19 @@ Example output format:
       "type": "Syntax Error",
       "severity": "High",
       "line": 3,
-      "message": "Missing semicolon."
+      "message": "Missing semicolon.",
+      "confidence": 95
     },
     {
       "type": "Logical Error",
       "severity": "Medium",
       "line": 10,
-      "message": "Incorrect loop condition."
+      "message": "Incorrect loop condition.",
+      "confidence": 87
     }
   ],
-  "correctedCode": "function example() {\\n  // fixed missing semicolon\\n  let a = 10;\\n  for (let i = 0; i < a; i++) {\\n    // fixed loop condition\\n    console.log(i);\\n  }\\n}"
+  "correctedCode": "function example() {\\n  // fixed missing semicolon\\n  let a = 10;\\n  for (let i = 0; i < a; i++) {\\n    // fixed loop condition\\n    console.log(i);\\n  }\\n}",
+  "overallConfidence": 91
 }
 
 Provide only this JSON output in your response.`;

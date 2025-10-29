@@ -12,6 +12,7 @@ interface BugCardProps {
   description: string;
   line?: number;
   codeSnippet?: string;
+  confidence?: number;
 }
 
 const bugIcons = {
@@ -36,14 +37,27 @@ const severityColors = {
   low: "bg-low-severity text-white",
 };
 
-export const BugCard = ({ type, severity, title, description, line, codeSnippet }: BugCardProps) => {
+const getConfidenceColor = (confidence: number) => {
+  if (confidence >= 90) return "text-green-500";
+  if (confidence >= 70) return "text-yellow-500";
+  return "text-orange-500";
+};
+
+const getConfidenceEmoji = (confidence: number) => {
+  if (confidence >= 90) return "🎯";
+  if (confidence >= 70) return "🔍";
+  return "⚠️";
+};
+
+export const BugCard = ({ type, severity, title, description, line, codeSnippet, confidence }: BugCardProps) => {
   const Icon = bugIcons[type];
+  const severityEmoji = severity === "high" ? "🔥" : severity === "medium" ? "🟠" : "🟢";
 
   return (
-    <Card className="p-4 transition-all hover:shadow-md">
+    <Card className="p-4 transition-all hover:shadow-md animate-in fade-in duration-300">
       <div className="flex items-start gap-4">
-        <div className="rounded-lg bg-muted p-2">
-          <Icon className="h-5 w-5 text-foreground" />
+        <div className="rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 p-2">
+          <Icon className="h-5 w-5 text-primary" />
         </div>
         
         <div className="flex-1 space-y-2">
@@ -53,14 +67,19 @@ export const BugCard = ({ type, severity, title, description, line, codeSnippet 
               {bugTypeLabels[type]}
             </Badge>
             <Badge className={`${severityColors[severity]} text-xs font-medium`}>
-              {severity.toUpperCase()}
+              {severityEmoji} {severity.toUpperCase()}
             </Badge>
+            {confidence && (
+              <Badge variant="secondary" className={`text-xs ${getConfidenceColor(confidence)}`}>
+                {getConfidenceEmoji(confidence)} {confidence}% confident
+              </Badge>
+            )}
           </div>
           
           <p className="text-sm text-muted-foreground">{description}</p>
           
           {line && (
-            <p className="text-xs text-muted-foreground">Line: {line}</p>
+            <p className="text-xs text-muted-foreground">📍 Line: {line}</p>
           )}
           
           {codeSnippet && (

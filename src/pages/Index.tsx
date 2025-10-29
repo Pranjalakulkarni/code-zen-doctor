@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { AnalysisView } from "@/components/AnalysisView";
 import { CorrectionView } from "@/components/CorrectionView";
 import { Button } from "@/components/ui/button";
-import { Bug, Sparkles } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Bug, Sparkles, History, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -15,8 +17,17 @@ interface AnalysisResult {
     severity: string;
     line?: number;
     message: string;
+    confidence?: number;
   }>;
   correctedCode: string;
+  overallConfidence?: number;
+}
+
+interface HistoryEntry {
+  id: string;
+  timestamp: Date;
+  bugCount: number;
+  code: string;
 }
 
 const Index = () => {
@@ -24,7 +35,17 @@ const Index = () => {
   const [currentView, setCurrentView] = useState<View>("editor");
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const { toast } = useToast();
+
+  // Load history from localStorage on mount
+  useEffect(() => {
+    const savedHistory = localStorage.getItem('analysisHistory');
+    if (savedHistory) {
+      const parsed = JSON.parse(savedHistory);
+      setHistory(parsed.map((h: any) => ({ ...h, timestamp: new Date(h.timestamp) })));
+    }
+  }, []);
 
   const handleAnalyze = async () => {
     if (!code.trim()) {
@@ -58,9 +79,20 @@ const Index = () => {
       setAnalysisResult(data);
       setCurrentView("analysis");
       
+      // Add to history
+      const newEntry: HistoryEntry = {
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        bugCount: data.bugs.length,
+        code: code.substring(0, 100) + (code.length > 100 ? '...' : ''),
+      };
+      const updatedHistory = [newEntry, ...history].slice(0, 5);
+      setHistory(updatedHistory);
+      localStorage.setItem('analysisHistory', JSON.stringify(updatedHistory));
+      
       toast({
         title: "Analysis complete",
-        description: `Found ${data.bugs.length} issue${data.bugs.length !== 1 ? 's' : ''}`,
+        description: `Found ${data.bugs.length} issue${data.bugs.length !== 1 ? 's' : ''} with ${data.overallConfidence || 'unknown'}% confidence`,
       });
     } catch (error: any) {
       console.error('Analysis error:', error);
@@ -97,6 +129,7 @@ const Index = () => {
     title: bug.type,
     description: bug.message,
     line: bug.line,
+    confidence: bug.confidence,
   })) || [];
 
   return (
@@ -127,6 +160,34 @@ const Index = () => {
               </p>
             </div>
 
+            {history.length > 0 && (
+              <Card className="p-4 bg-muted/50">
+                <div className="flex items-center gap-2 mb-3">
+                  <History className="h-4 w-4 text-primary" />
+                  <h3 className="font-semibold text-foreground">Recent Analyses</h3>
+                </div>
+                <div className="space-y-2">
+                  {history.map((entry) => (
+                    <div 
+                      key={entry.id}
+                      className="flex items-center justify-between p-2 rounded bg-card border hover:border-primary/50 transition-colors cursor-pointer"
+                      onClick={() => setCode(entry.code)}
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                        <span className="text-sm text-muted-foreground truncate">
+                          {entry.code}
+                        </span>
+                      </div>
+                      <Badge variant="secondary" className="ml-2 flex-shrink-0">
+                        {entry.bugCount} {entry.bugCount === 1 ? 'bug' : 'bugs'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
             <CodeEditor
               value={code}
               onChange={setCode}
@@ -145,14 +206,19 @@ function example() {
                 disabled={isAnalyzing}
               >
                 <Sparkles className="h-5 w-5" />
-                {isAnalyzing ? "Analyzing..." : "Analyze & Fix Bugs"}
+                {isAnalyzing ? "🤖 Analyzing..." : "Analyze & Fix Bugs"}
               </Button>
             </div>
           </div>
         )}
 
         {currentView === "analysis" && analysisResult && (
-          <AnalysisView bugs={mappedBugs} onBack={handleBack} onViewFix={handleViewFix} />
+          <AnalysisView 
+            bugs={mappedBugs} 
+            onBack={handleBack} 
+            onViewFix={handleViewFix}
+            overallConfidence={analysisResult.overallConfidence}
+          />
         )}
 
         {currentView === "correction" && analysisResult && (
