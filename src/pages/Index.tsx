@@ -5,46 +5,28 @@ import { CorrectionView } from "@/components/CorrectionView";
 import { Button } from "@/components/ui/button";
 import { Bug, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 type View = "editor" | "analysis" | "correction";
 
-// Mock data for demonstration
-const mockBugs = [
-  {
-    id: "1",
-    type: "syntax" as const,
-    severity: "high" as const,
-    title: "Missing semicolon",
-    description: "Statement should end with a semicolon to avoid potential issues",
-    line: 12,
-    codeSnippet: "const result = calculateValue()",
-  },
-  {
-    id: "2",
-    type: "logic" as const,
-    severity: "medium" as const,
-    title: "Unreachable code detected",
-    description: "Code after return statement will never be executed",
-    line: 24,
-    codeSnippet: "return value;\nconsole.log('This will never run');",
-  },
-  {
-    id: "3",
-    type: "security" as const,
-    severity: "high" as const,
-    title: "SQL Injection vulnerability",
-    description: "User input is directly concatenated into SQL query without sanitization",
-    line: 45,
-    codeSnippet: "const query = 'SELECT * FROM users WHERE id=' + userId;",
-  },
-];
+interface AnalysisResult {
+  bugs: Array<{
+    type: string;
+    severity: string;
+    line?: number;
+    message: string;
+  }>;
+  correctedCode: string;
+}
 
 const Index = () => {
   const [code, setCode] = useState("");
   const [currentView, setCurrentView] = useState<View>("editor");
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     if (!code.trim()) {
       toast({
         title: "No code to analyze",
@@ -54,15 +36,42 @@ const Index = () => {
       return;
     }
 
-    // Simulate analysis
+    setIsAnalyzing(true);
     toast({
       title: "Analyzing code...",
       description: "This may take a few moments",
     });
 
-    setTimeout(() => {
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-code', {
+        body: { code },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data || !data.bugs || !data.correctedCode) {
+        throw new Error('Invalid response from analysis service');
+      }
+
+      setAnalysisResult(data);
       setCurrentView("analysis");
-    }, 1000);
+      
+      toast({
+        title: "Analysis complete",
+        description: `Found ${data.bugs.length} issue${data.bugs.length !== 1 ? 's' : ''}`,
+      });
+    } catch (error: any) {
+      console.error('Analysis error:', error);
+      toast({
+        title: "Analysis failed",
+        description: error.message || "Failed to analyze code. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleViewFix = () => {
@@ -77,17 +86,18 @@ const Index = () => {
     }
   };
 
-  const mockCorrectedCode = `// Fixed code with all issues resolved
-const result = calculateValue();
-
-function processData(value) {
-  return value;
-  // Removed unreachable code
-}
-
-// Using parameterized query to prevent SQL injection
-const query = 'SELECT * FROM users WHERE id = ?';
-const result = db.execute(query, [userId]);`;
+  // Map API bug format to component format
+  const mappedBugs = analysisResult?.bugs.map((bug, index) => ({
+    id: String(index + 1),
+    type: bug.type.toLowerCase().includes('syntax') ? 'syntax' as const :
+          bug.type.toLowerCase().includes('logic') ? 'logic' as const :
+          bug.type.toLowerCase().includes('security') ? 'security' as const :
+          bug.type.toLowerCase().includes('ui') ? 'ui' as const : 'runtime' as const,
+    severity: bug.severity.toLowerCase() as 'high' | 'medium' | 'low',
+    title: bug.type,
+    description: bug.message,
+    line: bug.line,
+  })) || [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -128,20 +138,25 @@ function example() {
             />
 
             <div className="flex justify-center">
-              <Button onClick={handleAnalyze} size="lg" className="gap-2">
+              <Button 
+                onClick={handleAnalyze} 
+                size="lg" 
+                className="gap-2"
+                disabled={isAnalyzing}
+              >
                 <Sparkles className="h-5 w-5" />
-                Analyze & Fix Bugs
+                {isAnalyzing ? "Analyzing..." : "Analyze & Fix Bugs"}
               </Button>
             </div>
           </div>
         )}
 
-        {currentView === "analysis" && (
-          <AnalysisView bugs={mockBugs} onBack={handleBack} onViewFix={handleViewFix} />
+        {currentView === "analysis" && analysisResult && (
+          <AnalysisView bugs={mappedBugs} onBack={handleBack} onViewFix={handleViewFix} />
         )}
 
-        {currentView === "correction" && (
-          <CorrectionView correctedCode={mockCorrectedCode} onBack={handleBack} />
+        {currentView === "correction" && analysisResult && (
+          <CorrectionView correctedCode={analysisResult.correctedCode} onBack={handleBack} />
         )}
       </main>
 
