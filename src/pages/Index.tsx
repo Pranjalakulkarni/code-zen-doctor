@@ -144,7 +144,7 @@ const Index = () => {
 
   const handleSelectHistory = (entry: HistoryEntryType) => {
     setCode(entry.code);
-    setLanguage(entry.language);
+    setLanguage(entry.language || "");
     if (entry.bugs && entry.correctedCode) {
       setAnalysisResult({
         bugs: entry.bugs,

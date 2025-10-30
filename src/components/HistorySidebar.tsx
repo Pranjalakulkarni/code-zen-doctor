@@ -11,7 +11,7 @@ export interface HistoryEntry {
   timestamp: Date;
   bugCount: number;
   code: string;
-  language: string;
+  language?: string;
   bugs?: Array<any>;
   correctedCode?: string;
 }
@@ -88,9 +88,11 @@ export const HistorySidebar = ({ history, onSelect, onDelete, onClear }: History
                           <span className="text-xs text-muted-foreground">
                             {formatTime(entry.timestamp)}
                           </span>
-                          <Badge variant="outline" className="text-xs bg-secondary/10 border-secondary">
-                            {entry.language.toUpperCase()}
-                          </Badge>
+                          {entry.language && (
+                            <Badge variant="outline" className="text-xs bg-secondary/10 border-secondary">
+                              {entry.language.toUpperCase()}
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-sm text-foreground font-mono truncate mb-2">
                           {entry.code}
