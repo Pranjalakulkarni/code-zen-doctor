@@ -21,10 +21,11 @@ interface AnalysisViewProps {
   bugs: Bug[];
   onBack: () => void;
   onViewFix: () => void;
+  onStartNew: () => void;
   overallConfidence?: number;
 }
 
-export const AnalysisView = ({ bugs, onBack, onViewFix, overallConfidence }: AnalysisViewProps) => {
+export const AnalysisView = ({ bugs, onBack, onViewFix, onStartNew, overallConfidence }: AnalysisViewProps) => {
   const [feedback, setFeedback] = useState<'positive' | 'negative' | null>(null);
   const { toast } = useToast();
 
@@ -107,8 +108,12 @@ export const AnalysisView = ({ bugs, onBack, onViewFix, overallConfidence }: Ana
         </div>
       </Card>
 
-      <div className="flex justify-end pt-4">
-        <Button onClick={onViewFix} size="lg" className="gap-2">
+      <div className="flex justify-between pt-4">
+        <Button onClick={onStartNew} size="lg" variant="outline" className="gap-2 bg-gradient-to-r from-secondary/10 to-primary/10">
+          <ArrowLeft className="h-4 w-4" />
+          Start New Code
+        </Button>
+        <Button onClick={onViewFix} size="lg" className="gap-2 bg-gradient-to-r from-primary to-accent">
           View Corrected Code
           <ArrowRight className="h-4 w-4" />
         </Button>

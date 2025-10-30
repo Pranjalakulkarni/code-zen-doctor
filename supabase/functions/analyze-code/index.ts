@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { code } = await req.json();
+    const { code, language } = await req.json();
 
     if (!code || typeof code !== 'string' || !code.trim()) {
       return new Response(
@@ -30,10 +30,12 @@ serve(async (req) => {
       );
     }
 
+    const languageContext = language ? ` in ${language.toUpperCase()}` : '';
+    
     const systemPrompt = `You are an AI assistant for a bug classification and correction web app.
 
 Task:
-1. Analyze the user's pasted code.
+1. Analyze the user's pasted code${languageContext}.
 2. Identify and list each bug found with:
    - Bug type (Syntax, Logical, Security, UI, Runtime)
    - Severity (High, Medium, Low)
@@ -47,6 +49,7 @@ Task:
    - "overallConfidence": average confidence score across all bugs (0-100)
 6. The output must contain no filler language or explanations outside the JSON.
 7. The JSON must be valid for parsing by the frontend.
+8. IMPORTANT: If the code is perfect with no bugs, return an empty bugs array and the original code as correctedCode.
 
 Example output format:
 

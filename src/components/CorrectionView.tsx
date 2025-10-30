@@ -7,9 +7,10 @@ import { Card } from "@/components/ui/card";
 interface CorrectionViewProps {
   correctedCode: string;
   onBack: () => void;
+  onStartNew: () => void;
 }
 
-export const CorrectionView = ({ correctedCode, onBack }: CorrectionViewProps) => {
+export const CorrectionView = ({ correctedCode, onBack, onStartNew }: CorrectionViewProps) => {
   const { toast } = useToast();
 
   const handleCopy = () => {
@@ -73,15 +74,21 @@ export const CorrectionView = ({ correctedCode, onBack }: CorrectionViewProps) =
         placeholder="No corrected code available"
       />
 
-      <div className="flex gap-3 justify-end">
-        <Button onClick={handleCopy} variant="outline" className="gap-2">
-          <Copy className="h-4 w-4" />
-          Copy Code
+      <div className="flex justify-between">
+        <Button onClick={onStartNew} size="lg" className="gap-2 bg-gradient-to-r from-secondary to-accent">
+          <ArrowLeft className="h-4 w-4" />
+          Start New Code
         </Button>
-        <Button onClick={handleDownload} className="gap-2">
-          <Download className="h-4 w-4" />
-          Download File
-        </Button>
+        <div className="flex gap-3">
+          <Button onClick={handleCopy} variant="outline" className="gap-2">
+            <Copy className="h-4 w-4" />
+            Copy Code
+          </Button>
+          <Button onClick={handleDownload} className="gap-2 bg-gradient-to-r from-primary to-accent">
+            <Download className="h-4 w-4" />
+            Download File
+          </Button>
+        </div>
       </div>
     </div>
   );

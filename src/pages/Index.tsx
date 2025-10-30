@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { AnalysisView } from "@/components/AnalysisView";
 import { CorrectionView } from "@/components/CorrectionView";
+import { LanguageSelector } from "@/components/LanguageSelector";
+import { HistorySidebar, HistoryEntry as HistoryEntryType } from "@/components/HistorySidebar";
+import { PetalsAnimation } from "@/components/PetalsAnimation";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Bug, Sparkles, History, Clock } from "lucide-react";
+import { Bug, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -23,19 +24,14 @@ interface AnalysisResult {
   overallConfidence?: number;
 }
 
-interface HistoryEntry {
-  id: string;
-  timestamp: Date;
-  bugCount: number;
-  code: string;
-}
-
 const Index = () => {
   const [code, setCode] = useState("");
+  const [language, setLanguage] = useState("");
   const [currentView, setCurrentView] = useState<View>("editor");
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [history, setHistory] = useState<HistoryEntryType[]>([]);
+  const [showPetals, setShowPetals] = useState(false);
   const { toast } = useToast();
 
   // Load history from localStorage on mount
@@ -48,6 +44,15 @@ const Index = () => {
   }, []);
 
   const handleAnalyze = async () => {
+    if (!language) {
+      toast({
+        title: "Language not selected",
+        description: "Please select a programming language before analyzing",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!code.trim()) {
       toast({
         title: "No code to analyze",
@@ -65,7 +70,7 @@ const Index = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke('analyze-code', {
-        body: { code },
+        body: { code, language },
       });
 
       if (error) {
@@ -77,22 +82,34 @@ const Index = () => {
       }
 
       setAnalysisResult(data);
-      setCurrentView("analysis");
       
-      // Add to history
-      const newEntry: HistoryEntry = {
+      // Check if no bugs found
+      if (data.bugs.length === 0) {
+        setShowPetals(true);
+        setTimeout(() => setShowPetals(false), 5000);
+      } else {
+        setCurrentView("analysis");
+      }
+      
+      // Add to history with full data
+      const newEntry: HistoryEntryType = {
         id: Date.now().toString(),
         timestamp: new Date(),
         bugCount: data.bugs.length,
         code: code.substring(0, 100) + (code.length > 100 ? '...' : ''),
+        language,
+        bugs: data.bugs,
+        correctedCode: data.correctedCode,
       };
-      const updatedHistory = [newEntry, ...history].slice(0, 5);
+      const updatedHistory = [newEntry, ...history].slice(0, 10);
       setHistory(updatedHistory);
       localStorage.setItem('analysisHistory', JSON.stringify(updatedHistory));
       
       toast({
         title: "Analysis complete",
-        description: `Found ${data.bugs.length} issue${data.bugs.length !== 1 ? 's' : ''} with ${data.overallConfidence || 'unknown'}% confidence`,
+        description: data.bugs.length === 0 
+          ? "No bugs found! Your code is perfect! 🎉"
+          : `Found ${data.bugs.length} issue${data.bugs.length !== 1 ? 's' : ''} with ${data.overallConfidence || 'unknown'}% confidence`,
       });
     } catch (error: any) {
       console.error('Analysis error:', error);
@@ -118,6 +135,45 @@ const Index = () => {
     }
   };
 
+  const handleStartNew = () => {
+    setCurrentView("editor");
+    setCode("");
+    setLanguage("");
+    setAnalysisResult(null);
+  };
+
+  const handleSelectHistory = (entry: HistoryEntryType) => {
+    setCode(entry.code);
+    setLanguage(entry.language);
+    if (entry.bugs && entry.correctedCode) {
+      setAnalysisResult({
+        bugs: entry.bugs,
+        correctedCode: entry.correctedCode,
+        overallConfidence: entry.bugs[0]?.confidence,
+      });
+      setCurrentView("analysis");
+    }
+  };
+
+  const handleDeleteHistory = (id: string) => {
+    const updatedHistory = history.filter(h => h.id !== id);
+    setHistory(updatedHistory);
+    localStorage.setItem('analysisHistory', JSON.stringify(updatedHistory));
+    toast({
+      title: "Deleted",
+      description: "History entry removed",
+    });
+  };
+
+  const handleClearHistory = () => {
+    setHistory([]);
+    localStorage.removeItem('analysisHistory');
+    toast({
+      title: "History cleared",
+      description: "All history entries have been removed",
+    });
+  };
+
   // Map API bug format to component format
   const mappedBugs = analysisResult?.bugs.map((bug, index) => ({
     id: String(index + 1),
@@ -133,18 +189,30 @@ const Index = () => {
   })) || [];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-secondary/5">
+      {showPetals && <PetalsAnimation />}
+      
       {/* Header */}
-      <header className="border-b bg-card">
+      <header className="border-b bg-card/80 backdrop-blur-sm shadow-lg">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-primary/10 p-2">
-              <Bug className="h-6 w-6 text-primary" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-gradient-to-br from-primary to-accent p-3 shadow-lg animate-float">
+                <Bug className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                  Bug Classifier & Corrector
+                </h1>
+                <p className="text-sm text-muted-foreground">AI-powered code analysis and fixing</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Bug Classifier & Corrector</h1>
-              <p className="text-sm text-muted-foreground">AI-powered code analysis and fixing</p>
-            </div>
+            <HistorySidebar
+              history={history}
+              onSelect={handleSelectHistory}
+              onDelete={handleDeleteHistory}
+              onClear={handleClearHistory}
+            />
           </div>
         </div>
       </header>
@@ -154,39 +222,15 @@ const Index = () => {
         {currentView === "editor" && (
           <div className="space-y-6 animate-in fade-in duration-500">
             <div className="text-center space-y-2">
-              <h2 className="text-3xl font-bold text-foreground">Paste Your Code</h2>
+              <h2 className="text-3xl font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+                Paste Your Code
+              </h2>
               <p className="text-muted-foreground">
-                Enter your code below and let our AI analyze and fix bugs automatically
+                Select your language and let our AI analyze and fix bugs automatically
               </p>
             </div>
 
-            {history.length > 0 && (
-              <Card className="p-4 bg-muted/50">
-                <div className="flex items-center gap-2 mb-3">
-                  <History className="h-4 w-4 text-primary" />
-                  <h3 className="font-semibold text-foreground">Recent Analyses</h3>
-                </div>
-                <div className="space-y-2">
-                  {history.map((entry) => (
-                    <div 
-                      key={entry.id}
-                      className="flex items-center justify-between p-2 rounded bg-card border hover:border-primary/50 transition-colors cursor-pointer"
-                      onClick={() => setCode(entry.code)}
-                    >
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                        <span className="text-sm text-muted-foreground truncate">
-                          {entry.code}
-                        </span>
-                      </div>
-                      <Badge variant="secondary" className="ml-2 flex-shrink-0">
-                        {entry.bugCount} {entry.bugCount === 1 ? 'bug' : 'bugs'}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            )}
+            <LanguageSelector value={language} onChange={setLanguage} />
 
             <CodeEditor
               value={code}
@@ -202,8 +246,8 @@ function example() {
               <Button 
                 onClick={handleAnalyze} 
                 size="lg" 
-                className="gap-2"
-                disabled={isAnalyzing}
+                className="gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90 shadow-lg"
+                disabled={isAnalyzing || !language}
               >
                 <Sparkles className="h-5 w-5" />
                 {isAnalyzing ? "🤖 Analyzing..." : "Analyze & Fix Bugs"}
@@ -217,12 +261,17 @@ function example() {
             bugs={mappedBugs} 
             onBack={handleBack} 
             onViewFix={handleViewFix}
+            onStartNew={handleStartNew}
             overallConfidence={analysisResult.overallConfidence}
           />
         )}
 
         {currentView === "correction" && analysisResult && (
-          <CorrectionView correctedCode={analysisResult.correctedCode} onBack={handleBack} />
+          <CorrectionView 
+            correctedCode={analysisResult.correctedCode} 
+            onBack={handleBack}
+            onStartNew={handleStartNew}
+          />
         )}
       </main>
 
