@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { CodeEditor } from "@/components/CodeEditor";
 import { AnalysisView } from "@/components/AnalysisView";
 import { CorrectionView } from "@/components/CorrectionView";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { HistorySidebar, HistoryEntry as HistoryEntryType } from "@/components/HistorySidebar";
-import { PetalsAnimation } from "@/components/PetalsAnimation";
 import { Button } from "@/components/ui/button";
-import { Bug, Sparkles } from "lucide-react";
+import { Bug, Sparkles, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -31,7 +31,7 @@ const Index = () => {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [history, setHistory] = useState<HistoryEntryType[]>([]);
-  const [showPetals, setShowPetals] = useState(false);
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   // Load history from localStorage on mount
@@ -42,6 +42,23 @@ const Index = () => {
       setHistory(parsed.map((h: any) => ({ ...h, timestamp: new Date(h.timestamp) })));
     }
   }, []);
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to log out. Please try again.",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Logged out",
+        description: "You've been successfully logged out.",
+      });
+      navigate("/auth");
+    }
+  };
 
   const handleAnalyze = async () => {
     if (!language) {
@@ -83,13 +100,8 @@ const Index = () => {
 
       setAnalysisResult(data);
       
-      // Check if no bugs found
-      if (data.bugs.length === 0) {
-        setShowPetals(true);
-        setTimeout(() => setShowPetals(false), 5000);
-      } else {
-        setCurrentView("analysis");
-      }
+      // Navigate to analysis view regardless of bug count
+      setCurrentView("analysis");
       
       // Add to history with full data
       const newEntry: HistoryEntryType = {
@@ -190,8 +202,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-secondary/5">
-      {showPetals && <PetalsAnimation />}
-      
       {/* Header */}
       <header className="border-b bg-card/80 backdrop-blur-sm shadow-lg">
         <div className="container mx-auto px-4 py-4">
@@ -207,12 +217,23 @@ const Index = () => {
                 <p className="text-sm text-muted-foreground">AI-powered code analysis and fixing</p>
               </div>
             </div>
-            <HistorySidebar
-              history={history}
-              onSelect={handleSelectHistory}
-              onDelete={handleDeleteHistory}
-              onClear={handleClearHistory}
-            />
+            <div className="flex items-center gap-3">
+              <HistorySidebar
+                history={history}
+                onSelect={handleSelectHistory}
+                onDelete={handleDeleteHistory}
+                onClear={handleClearHistory}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLogout}
+                className="gap-2 hover:bg-destructive/10 hover:text-destructive hover:border-destructive"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </Button>
+            </div>
           </div>
         </div>
       </header>
