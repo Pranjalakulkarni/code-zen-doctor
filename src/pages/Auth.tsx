@@ -119,7 +119,7 @@ const Auth = () => {
       <Card className="w-full max-w-md shadow-2xl border-primary/20">
         <CardHeader className="space-y-4">
           <div className="flex justify-center">
-            <div className="rounded-xl bg-gradient-to-br from-primary to-accent p-3 shadow-lg animate-float">
+            <div className="rounded-xl bg-gradient-to-br from-primary to-accent p-3 shadow-lg">
               <Bug className="h-8 w-8 text-white" />
             </div>
           </div>
