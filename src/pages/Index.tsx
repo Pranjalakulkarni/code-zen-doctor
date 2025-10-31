@@ -34,13 +34,38 @@ const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Load history from localStorage on mount
+  // Load history from database on mount
   useEffect(() => {
-    const savedHistory = localStorage.getItem('analysisHistory');
-    if (savedHistory) {
-      const parsed = JSON.parse(savedHistory);
-      setHistory(parsed.map((h: any) => ({ ...h, timestamp: new Date(h.timestamp) })));
-    }
+    const loadHistory = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('analysis_history')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error('Error loading history:', error);
+        return;
+      }
+
+      if (data) {
+        const mappedHistory: HistoryEntryType[] = data.map((item) => ({
+          id: item.id,
+          timestamp: new Date(item.created_at),
+          bugCount: item.bug_count,
+          code: item.code.substring(0, 100) + (item.code.length > 100 ? '...' : ''),
+          language: item.language,
+          bugs: item.bugs as any,
+          correctedCode: item.corrected_code,
+        }));
+        setHistory(mappedHistory);
+      }
+    };
+
+    loadHistory();
   }, []);
 
   const handleLogout = async () => {
@@ -103,19 +128,38 @@ const Index = () => {
       // Navigate to analysis view regardless of bug count
       setCurrentView("analysis");
       
-      // Add to history with full data
-      const newEntry: HistoryEntryType = {
-        id: Date.now().toString(),
-        timestamp: new Date(),
-        bugCount: data.bugs.length,
-        code: code.substring(0, 100) + (code.length > 100 ? '...' : ''),
-        language,
-        bugs: data.bugs,
-        correctedCode: data.correctedCode,
-      };
-      const updatedHistory = [newEntry, ...history].slice(0, 10);
-      setHistory(updatedHistory);
-      localStorage.setItem('analysisHistory', JSON.stringify(updatedHistory));
+      // Save to database
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: insertedData, error: insertError } = await supabase
+          .from('analysis_history')
+          .insert({
+            user_id: user.id,
+            code,
+            language,
+            bug_count: data.bugs.length,
+            bugs: data.bugs,
+            corrected_code: data.correctedCode,
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Error saving to history:', insertError);
+        } else if (insertedData) {
+          // Add to local state
+          const newEntry: HistoryEntryType = {
+            id: insertedData.id,
+            timestamp: new Date(insertedData.created_at),
+            bugCount: insertedData.bug_count,
+            code: code.substring(0, 100) + (code.length > 100 ? '...' : ''),
+            language: insertedData.language,
+            bugs: insertedData.bugs as any,
+            correctedCode: insertedData.corrected_code,
+          };
+          setHistory([newEntry, ...history].slice(0, 10));
+        }
+      }
       
       toast({
         title: "Analysis complete",
@@ -154,32 +198,77 @@ const Index = () => {
     setAnalysisResult(null);
   };
 
-  const handleSelectHistory = (entry: HistoryEntryType) => {
-    setCode(entry.code);
-    setLanguage(entry.language || "");
-    if (entry.bugs && entry.correctedCode) {
+  const handleSelectHistory = async (entry: HistoryEntryType) => {
+    // Load full code from database
+    const { data, error } = await supabase
+      .from('analysis_history')
+      .select('*')
+      .eq('id', entry.id)
+      .single();
+
+    if (error || !data) {
+      toast({
+        title: "Error",
+        description: "Failed to load history entry",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCode(data.code);
+    setLanguage(data.language || "");
+    if (data.bugs && data.corrected_code) {
       setAnalysisResult({
-        bugs: entry.bugs,
-        correctedCode: entry.correctedCode,
-        overallConfidence: entry.bugs[0]?.confidence,
+        bugs: data.bugs as any,
+        correctedCode: data.corrected_code,
+        overallConfidence: (data.bugs as any)[0]?.confidence,
       });
       setCurrentView("analysis");
     }
   };
 
-  const handleDeleteHistory = (id: string) => {
+  const handleDeleteHistory = async (id: string) => {
+    const { error } = await supabase
+      .from('analysis_history')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete history entry",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const updatedHistory = history.filter(h => h.id !== id);
     setHistory(updatedHistory);
-    localStorage.setItem('analysisHistory', JSON.stringify(updatedHistory));
     toast({
       title: "Deleted",
       description: "History entry removed",
     });
   };
 
-  const handleClearHistory = () => {
+  const handleClearHistory = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('analysis_history')
+      .delete()
+      .eq('user_id', user.id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to clear history",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setHistory([]);
-    localStorage.removeItem('analysisHistory');
     toast({
       title: "History cleared",
       description: "All history entries have been removed",
@@ -207,7 +296,7 @@ const Index = () => {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-gradient-to-br from-primary to-accent p-3 shadow-lg animate-float">
+              <div className="rounded-xl bg-gradient-to-br from-primary to-accent p-3 shadow-lg">
                 <Bug className="h-6 w-6 text-white" />
               </div>
               <div>
@@ -278,13 +367,54 @@ function example() {
         )}
 
         {currentView === "analysis" && analysisResult && (
-          <AnalysisView 
-            bugs={mappedBugs} 
-            onBack={handleBack} 
-            onViewFix={handleViewFix}
-            onStartNew={handleStartNew}
-            overallConfidence={analysisResult.overallConfidence}
-          />
+          <>
+            {mappedBugs.length === 0 ? (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                <div className="text-center space-y-6 py-12">
+                  <div className="flex justify-center">
+                    <div className="rounded-full bg-success/10 p-8">
+                      <svg
+                        className="h-24 w-24 text-success"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  <h2 className="text-3xl font-bold text-success">
+                    Code is correct!
+                  </h2>
+                  <p className="text-muted-foreground text-lg">
+                    No bugs found. Great job!
+                  </p>
+                  <div className="flex justify-center gap-4 pt-6">
+                    <Button onClick={handleBack} variant="outline" size="lg">
+                      Back to Editor
+                    </Button>
+                    <Button onClick={handleStartNew} size="lg" className="gap-2">
+                      <Sparkles className="h-5 w-5" />
+                      Start New Code
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <AnalysisView 
+                bugs={mappedBugs} 
+                onBack={handleBack} 
+                onViewFix={handleViewFix}
+                onStartNew={handleStartNew}
+                overallConfidence={analysisResult.overallConfidence}
+              />
+            )}
+          </>
         )}
 
         {currentView === "correction" && analysisResult && (

@@ -14,7 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      analysis_history: {
+        Row: {
+          bug_count: number
+          bugs: Json | null
+          code: string
+          corrected_code: string | null
+          created_at: string
+          id: string
+          language: string
+          user_id: string
+        }
+        Insert: {
+          bug_count?: number
+          bugs?: Json | null
+          code: string
+          corrected_code?: string | null
+          created_at?: string
+          id?: string
+          language: string
+          user_id: string
+        }
+        Update: {
+          bug_count?: number
+          bugs?: Json | null
+          code?: string
+          corrected_code?: string | null
+          created_at?: string
+          id?: string
+          language?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
