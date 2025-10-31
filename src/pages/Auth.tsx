@@ -169,7 +169,7 @@ const Auth = () => {
           </div>
           <div className="text-center">
             <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Bug Classifier
+              Bug Classifier & Corrector
             </CardTitle>
             <CardDescription className="text-base mt-2">
               AI-powered code analysis and fixing
