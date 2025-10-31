@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Bug, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Bug, Eye, EyeOff, Loader2, ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -16,6 +16,9 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [isValidEmail, setIsValidEmail] = useState(false);
   const [isValidPassword, setIsValidPassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [isValidResetEmail, setIsValidResetEmail] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -40,6 +43,47 @@ const Auth = () => {
     // Validate password (minimum 6 characters)
     setIsValidPassword(password.length >= 6);
   }, [password]);
+
+  useEffect(() => {
+    // Validate reset email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    setIsValidResetEmail(emailRegex.test(resetEmail));
+  }, [resetEmail]);
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isValidResetEmail) {
+      toast({
+        title: "Invalid email",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    const redirectUrl = `${window.location.origin}/reset-password`;
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: redirectUrl,
+    });
+
+    if (error) {
+      toast({
+        title: "Request failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Email sent!",
+        description: "Check your email for a password reset link.",
+      });
+      setShowForgotPassword(false);
+      setResetEmail("");
+    }
+    setLoading(false);
+  };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,6 +178,60 @@ const Auth = () => {
         </CardHeader>
         
         <CardContent>
+          {showForgotPassword ? (
+            <div className="space-y-4">
+              <Button
+                variant="ghost"
+                onClick={() => setShowForgotPassword(false)}
+                className="mb-2 -ml-2"
+                aria-label="Back to login"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Login
+              </Button>
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-semibold">Reset Password</h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Enter your email to receive a password reset link
+                </p>
+              </div>
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reset-email">Email Address</Label>
+                  <Input
+                    id="reset-email"
+                    type="email"
+                    placeholder="your@email.com"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    required
+                    className={!isValidResetEmail && resetEmail ? "border-destructive" : ""}
+                    aria-describedby="reset-email-error"
+                  />
+                  {!isValidResetEmail && resetEmail && (
+                    <p id="reset-email-error" className="text-xs text-destructive" role="alert">
+                      Please enter a valid email address
+                    </p>
+                  )}
+                </div>
+                
+                <Button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                  disabled={!isValidResetEmail || loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sending reset link...
+                    </>
+                  ) : (
+                    "Send Reset Link"
+                  )}
+                </Button>
+              </form>
+            </div>
+          ) : (
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="login">Log In</TabsTrigger>
@@ -181,6 +279,17 @@ const Auth = () => {
                   {!isValidPassword && password && (
                     <p className="text-xs text-destructive">Password must be at least 6 characters</p>
                   )}
+                </div>
+                
+                <div className="text-right">
+                  <Button
+                    type="button"
+                    variant="link"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="text-sm text-primary hover:text-primary/80 p-0 h-auto"
+                  >
+                    Forgot Password?
+                  </Button>
                 </div>
                 
                 <Button
@@ -260,6 +369,7 @@ const Auth = () => {
               </form>
             </TabsContent>
           </Tabs>
+          )}
         </CardContent>
         
         <CardFooter className="flex flex-col space-y-2 text-center text-sm text-muted-foreground">
